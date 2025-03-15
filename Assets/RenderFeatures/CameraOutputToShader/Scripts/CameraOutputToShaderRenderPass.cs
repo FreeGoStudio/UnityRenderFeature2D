@@ -4,15 +4,15 @@ using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RenderGraphModule.Util;
 using UnityEngine.Rendering.Universal;
 
-namespace FreeGo.RenderFeatures.CameraOutput
+namespace FreeGo.RenderFeatures.CameraOutputToShader
 {
-    internal class CameraOutputRenderPass : ScriptableRenderPass
+    internal class CameraOutputToShaderRenderPass : ScriptableRenderPass
     {
         private RTHandle m_OutputCameraRTHandle;
 
         private const string c_ShaderGloabaPropertyName = "_OutputCameraTexture";
         private static readonly int s_ShaderGlobalPropertyId = Shader.PropertyToID(c_ShaderGloabaPropertyName);
-        public CameraOutputRenderPass(RenderPassEvent evt)
+        public CameraOutputToShaderRenderPass(RenderPassEvent evt)
         {
             this.renderPassEvent = evt;
         }
