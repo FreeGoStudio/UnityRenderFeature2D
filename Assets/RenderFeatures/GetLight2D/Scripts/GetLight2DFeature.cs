@@ -2,10 +2,10 @@ using UnityEngine.Rendering.Universal;
 
 namespace FreeGo.RenderFeatures.CameraOutputToShader
 {
-    public class CameraOutputToShaderFeature : ScriptableRendererFeature
+    public class GetLight2DFeature : ScriptableRendererFeature
     {
         public RenderPassEvent RenderPassEvent = RenderPassEvent.AfterRenderingTransparents;
-        private CameraOutputToShaderRenderPass m_Pass;
+        private GetLight2DRenderPass m_Pass;
 
         public override void Create()
         {
