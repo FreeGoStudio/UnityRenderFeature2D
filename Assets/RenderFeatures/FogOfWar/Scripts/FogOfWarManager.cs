@@ -3,21 +3,22 @@ using UnityEngine.UI;
 
 namespace FreeGo
 {
-    [ExecuteAlways]
     public class FogOfWarManager : MonoBehaviour
     {
         [SerializeField] private Camera m_Camera;
         [SerializeField] private ComputeShader m_AddComputeShader;
+        [SerializeField] private Shader m_FogOfWarShader;
         [SerializeField] private RawImage m_FogOfWarMask;
 
+        private Material m_FogOfWarMaterial;
         private Texture m_LightTexture;
         private RenderTexture m_FogOfWarMaskRenderTexture;
         private int m_CSMainKernelID;
-
         private int m_PropertyId;
 
         private void Awake()
         {
+            m_FogOfWarMaterial = new Material(m_FogOfWarShader);
             if (m_Camera != null)
             {
                 //设置相机比例为正方形
@@ -40,7 +41,9 @@ namespace FreeGo
             m_FogOfWarMaskRenderTexture.Create();
 
             m_FogOfWarMask.gameObject.SetActive(true);
+            m_FogOfWarMask.material = m_FogOfWarMaterial;
             m_FogOfWarMask.texture = m_FogOfWarMaskRenderTexture;
+
             m_CSMainKernelID = m_AddComputeShader.FindKernel("CSMain");
             m_AddComputeShader.SetTexture(m_CSMainKernelID, "Result", m_FogOfWarMaskRenderTexture);
 
