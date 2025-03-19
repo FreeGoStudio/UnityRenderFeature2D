@@ -4,21 +4,20 @@ using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RenderGraphModule.Util;
 using UnityEngine.Rendering.Universal;
 
-using static UnityEngine.Rendering.Universal.Internal.DrawObjectsPass;
-
 namespace FreeGo.RenderFeatures.FogOfWar
 {
     internal class FogOfWarRenderPass : ScriptableRenderPass
     {
         private class FogOfWarComputePassData
         {
-            public BufferHandle output;
+            public BufferHandle OutputBufferHandle;
+            public ComputeShader FogComputeShader;
+            public TextureHandle Light2DTextureHandle;
         }
-
         private RTHandle m_OutputCameraRTHandle;
-
         private const string c_ShaderGloabaPropertyName = "_OutputCameraTexture";
         private static readonly int s_ShaderGlobalPropertyId = Shader.PropertyToID(c_ShaderGloabaPropertyName);
+
         public FogOfWarRenderPass(RenderPassEvent evt)
         {
             this.renderPassEvent = evt;
@@ -34,12 +33,18 @@ namespace FreeGo.RenderFeatures.FogOfWar
                 return;
             }
 
+            //设置RenderTexture的属性
             var renderTextureDescriptor = cameraData.cameraTargetDescriptor;
             renderTextureDescriptor.depthBufferBits = 0;
             renderTextureDescriptor.msaaSamples = 1;
+            renderTextureDescriptor.width = 16;
+            renderTextureDescriptor.height = 16;
 
+            //对m_OutputCameraRTHandle配置renderTextureDescriptor和filterMode, TextureWrapMode
             RenderingUtils.ReAllocateHandleIfNeeded(ref m_OutputCameraRTHandle, renderTextureDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: c_ShaderGloabaPropertyName);
+            //设置Shader全局Texture属性
             Shader.SetGlobalTexture(s_ShaderGlobalPropertyId, m_OutputCameraRTHandle);
+
 
             if (resourceData2D != null)
             {
@@ -47,54 +52,63 @@ namespace FreeGo.RenderFeatures.FogOfWar
                 {
                     for (var j = 0; j < resourceData2D.lightTextures[i].Length; j++)
                     {
-                        var source = resourceData2D.lightTextures[i][j];
-                        var destination = renderGraph.ImportTexture(m_OutputCameraRTHandle);
+                        //获取光照Texture
+                        TextureHandle lightTextureHandle = resourceData2D.lightTextures[i][j];
+                        //将RenderTexture导入到RenderGraph, 并将其资源标识的赋值给destination
+                        var outputCameraTextureHandle = renderGraph.ImportTexture(m_OutputCameraRTHandle);
 
-                        if (!source.IsValid() || !destination.IsValid())
+                        if (!lightTextureHandle.IsValid())
                         {
                             return;
                         }
-                        var blitMaterialParameters = new UnityEngine.Rendering.RenderGraphModule.Util.RenderGraphUtils.BlitMaterialParameters(source, destination, Blitter.GetBlitMaterial(TextureDimension.Tex2D), 0);
+
+                        //设置Blit操作的参数
+                        var blitMaterialParameters = new UnityEngine.Rendering.RenderGraphModule.Util.RenderGraphUtils.BlitMaterialParameters(lightTextureHandle, outputCameraTextureHandle, Blitter.GetBlitMaterial(TextureDimension.Tex2D), 0);
+                        //添加Blit Pass
                         renderGraph.AddBlitPass(blitMaterialParameters, "BlitToRTHandle_CameraOutput");
 
-                        //using (var builder = renderGraph.AddComputePass<FogOfWarComputePassData>("FogOfWar ComputePass", out var data))
+                        //using (var builder = renderGraph.AddRasterRenderPass("", out FogOfWarComputePassData passData))
                         //{
-
-                        //    // Use ComputeGraphContext instead of RasterGraphContext.
-                        //    builder.SetRenderFunc((PassData data, ComputeGraphContext context) => ExecuteComputePass(data, context));
-
+                        //    passData.FogComputeShader = m_FogComputeShader;
+                        //    passData.Light2DTextureHandle = lightTextureHandle;
+                        //    builder.SetRenderFunc((FogOfWarComputePassData data, RasterGraphContext context) =>
+                        //    {
+                        //        ExecutePass(data, context);
+                        //    });
                         //}
 
-                        // 添加Compute Pass
-                        //renderGraph.AddComputePass<PassData>("ComputeShaderPass", out var passData)
-                        //    .SetRenderFunc((PassData data, ComputeGraphContext ctx) =>
+                        //using (var builder = renderGraph.AddComputePass("FogOfWarRenderPass", out FogOfWarComputePassData passData))
+                        //{
+                        //    //初始化ComputePassData
+                        //    passData.OutputBufferHandle = new BufferHandle();
+                        //    passData.FogComputeShader = m_FogComputeShader;
+                        //    passData.Light2DTextureHandle = lightTextureHandle;
+
+                        //    builder.SetRenderFunc((FogOfWarComputePassData data, ComputeGraphContext context) =>
                         //    {
-                        //        var cmd = ctx.cmd;
-                        //        var computeShader = Resources.Load<ComputeShader>("YourComputeShader");
-                        //        int kernelHandle = computeShader.FindKernel("CSMain");
-
-
-                        //        cmd.SetComputeTextureParam(computeShader, kernelHandle, "Source", source);
-                        //        cmd.SetComputeTextureParam(computeShader, kernelHandle, "Destination", destination);
-
-
-
-                        //        using (var builder = renderGraph.AddComputePass("MyComputePass", out PassData data))
-                        //        {
-
-                        //            // Use ComputeGraphContext instead of RasterGraphContext.
-                        //            builder.SetRenderFunc((PassData data, ComputeGraphContext context) => ExecutePass(data, context));
-
-                        //        }
+                        //        ExecuteComputePass(data, context);
                         //    });
+
+                        //}
                     }
                 }
             }
         }
 
-        private static void ExecuteComputePass(PassData data, ComputeGraphContext context)
-        {
 
+        private static void ExecuteComputePass(FogOfWarComputePassData passData, ComputeGraphContext context)
+        {
+            context.cmd.SetComputeBufferParam(passData.FogComputeShader, passData.FogComputeShader.FindKernel("CSMain"), "Result", passData.OutputBufferHandle);
+            context.cmd.DispatchCompute(passData.FogComputeShader, passData.FogComputeShader.FindKernel("CSMain"), 1, 1, 1);
+            //RTHandle rTHandle = passData.Light2DTextureHandle;
+        }
+
+        private static void ExecutePass(FogOfWarComputePassData passData, RasterGraphContext context)
+        {
+            //context.cmd.SetComputeBufferParam(passData.FogComputeShader, passData.FogComputeShader.FindKernel("CSMain"), "Result", passData.OutputBufferHandle);
+            //context.cmd.DispatchCompute(passData.FogComputeShader, passData.FogComputeShader.FindKernel("CSMain"), 1, 1, 1);
+            //RTHandle rTHandle = passData.Light2DTextureHandle;
+            RTHandle rTHandle = passData.Light2DTextureHandle;
         }
     }
 }

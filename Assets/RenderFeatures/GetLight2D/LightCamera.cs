@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace FreeGo.RenderFeatures.GetLight2D
 {
+    [ExecuteAlways]
     public class LightCamera : MonoBehaviour
     {
         [SerializeField] private Camera m_Camera;
